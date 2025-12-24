@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>К-Инвестиции</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/300/line-chart.png">
+
+    <style>
+        :root { --bg: #000000; --card: #1c1c1e; --accent: #30d158; --text: #ffffff; --sec: #8e8e93; }
+        * { box-sizing: border-box; font-family: -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
+        body { margin: 0; background: var(--bg); color: var(--text); overscroll-behavior: none; }
+        
+        .refresh-btn { position: fixed; top: 45px; right: 20px; width: 35px; height: 35px; background: #2c2c2e; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 1000; border: none; color: white; opacity: 0.6; }
+        
+        .screen { display: none; padding: 20px; min-height: 100vh; flex-direction: column; }
+        .screen.active { display: flex; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Auth */
+        .auth-form { margin-top: 100px; text-align: center; padding: 0 10px; }
+        input { width: 100%; padding: 18px; border-radius: 14px; background: #1c1c1e; border: 1px solid #333; color: white; font-size: 16px; margin-bottom: 12px; outline: none; }
+        .btn { width: 100%; padding: 18px; border-radius: 14px; border: none; font-size: 16px; font-weight: 600; background: var(--accent); color: white; margin-top: 10px; }
+
+        /* Portfolio */
+        .header { margin-top: 40px; }
+        .total-label { color: var(--sec); font-size: 14px; }
+        .total-amount { font-size: 38px; font-weight: 800; margin: 5px 0; letter-spacing: -1px; }
+        .profit { color: var(--accent); font-size: 14px; font-weight: 500; }
+
+        /* Chart */
+        .chart-container { height: 100px; width: 100%; margin: 25px 0; display: flex; align-items: flex-end; gap: 3px; }
+        .chart-bar { flex: 1; background: linear-gradient(to top, rgba(48, 209, 88, 0.1), rgba(48, 209, 88, 0.7)); border-radius: 2px; }
+
+        .section-title { font-size: 20px; font-weight: 700; margin: 25px 0 15px; }
+        .asset-item { display: flex; justify-content: space-between; align-items: center; padding: 16px 0; border-bottom: 0.5px solid #2c2c2e; }
+        .asset-icon { width: 42px; height: 42px; border-radius: 12px; background: #2c2c2e; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-right: 14px; }
+        .asset-name { font-weight: 600; font-size: 16px; }
+        .asset-ticker { font-size: 12px; color: var(--sec); }
+        .asset-price { text-align: right; font-weight: 600; }
+        .asset-ch { font-size: 12px; color: var(--accent); }
+
+        footer { text-align: center; font-size: 10px; color: #444; padding: 40px 20px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+    <button class="refresh-btn" onclick="location.reload()">🔄</button>
+
+    <div id="screen-auth" class="screen active">
+        <div class="auth-form">
+            <div style="font-size:60px; margin-bottom:20px">📊</div>
+            <h1 style="font-size:32px; margin-bottom:10px">К-Инвестиции</h1>
+            <p style="color:var(--sec); margin-bottom:40px">Вход в торговый терминал</p>
+            <input type="text" id="log" placeholder="Логин">
+            <input type="password" id="pass" placeholder="Пароль">
+            <button class="btn" onclick="login()">Авторизоваться</button>
+            <p id="err" style="color:#ff453a; font-size:14px; margin-top:15px; display:none">Доступ отклонен: проверьте данные</p>
+        </div>
+        <footer>Создано в юмористических целях, не несет никакой угрозы.</footer>
+    </div>
+
+    <div id="screen-main" class="screen">
+        <div class="header">
+            <div class="total-label" id="uLabel">Инвестиционный портфель</div>
+            <div class="total-amount" id="uTotal">0 ₽</div>
+            <div class="profit" id="uProfit">▲ +0 ₽ (0%) сегодня</div>
+        </div>
+
+        <div class="chart-container" id="chart"></div>
+
+        <div class="section-title">Активы</div>
+        <div id="assets-list"></div>
+
+        <div class="section-title">Денежные средства</div>
+        <div id="currency-list"></div>
+
+        <footer>Создано в юмористических целях, не несет никакой угрозы.</footer>
+    </div>
+
+    <script>
+        // БАЗА ВСЕХ КЛИЕНТОВ
+        const users = {
+            "Артём": { pw: "1234", total: 14216, bonus: 1250, stocks: [{n:"Газпром", t:"GAZP", p:8200, i:"🔥"}, {n:"Яндекс", t:"YNDX", p:6016, i:"🔍"}] },
+            "Даня": { pw: "1115", total: 9000, bonus: 3, stocks: [{n:"Сбер", t:"SBER", p:9000, i:"🍏"}] },
+            "Роман": { pw: "2025", total: 8200, bonus: 0, stocks: [{n:"Лукойл", t:"LKOH", p:8200, i:"⛽"}] },
+            "Алексей": { pw: "4711", total: 1005, bonus: 2, stocks: [{n:"Магнит", t:"MGNT", p:1005, i:"🛒"}] },
+            "Матвей": { pw: "2212", total: 1000, bonus: 2, stocks: [{n:"ВТБ", t:"VTBR", p:1000, i:"🔵"}] },
+            "Тимофей": { pw: "6767", total: 8200, bonus: 25, stocks: [{n:"Ozon", t:"OZON", p:8200, i:"📦"}] },
+            "Михаил": { pw: "3456", total: 9500, bonus: 4, stocks: [{n:"Тинькофф", t:"TCSG", p:4500, i:"🛡️"}, {n:"Кред. Лимит", t:"LIMIT", p:5000, i:"💳"}] },
+            "Святослав": { pw: "3553", total: 15000, bonus: 402, stocks: [{n:"Роснефть", t:"ROSN", p:15000, i:"🛢️"}] },
+            "Фёдор": { pw: "1655", total: 15000, bonus: 1, stocks: [{n:"Норникель", t:"GMKN", p:15000, i:"⛏️"}] }
+        };
+
+        function login() {
+            const loginInput = document.getElementById('log').value.trim();
+            const passInput = document.getElementById('pass').value.trim();
+            const user = users[loginInput];
+
+            if(user && user.pw === passInput) {
+                render(user, loginInput);
+                document.getElementById('screen-auth').classList.remove('active');
+                document.getElementById('screen-main').classList.add('active');
+            } else {
+                document.getElementById('err').style.display = 'block';
+            }
+        }
+
+        function render(u, name) {
+            document.getElementById('uLabel').innerText = `Портфель ${name}`;
+            document.getElementById('uTotal').innerText = u.total.toLocaleString() + " ₽";
+            
+            const dayProfit = Math.floor(u.total * 0.012);
+            document.getElementById('uProfit').innerText = `▲ +${dayProfit.toLocaleString()} ₽ (1.2%) сегодня`;
+
+            // График
+            const chart = document.getElementById('chart');
+            chart.innerHTML = '';
+            for(let i=0; i<25; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'chart-bar';
+                bar.style.height = (30 + Math.random() * 70) + '%';
+                chart.appendChild(bar);
+            }
+
+            // Акции
+            const al = document.getElementById('assets-list');
+            al.innerHTML = '';
+            u.stocks.forEach(s => {
+                al.innerHTML += `
+                    <div class="asset-item">
+                        <div style="display:flex; align-items:center">
+                            <div class="asset-icon">${s.i}</div>
+                            <div>
+                                <div class="asset-name">${s.n}</div>
+                                <div class="asset-ticker">${s.t}</div>
+                            </div>
+                        </div>
+                        <div class="asset-price">
+                            <div>${s.p.toLocaleString()} ₽</div>
+                            <div class="asset-ch">+${(Math.random()*3).toFixed(1)}%</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Валюта
+            const cl = document.getElementById('currency-list');
+            cl.innerHTML = `
+                <div class="asset-item">
+                    <div style="display:flex; align-items:center">
+                        <div class="asset-icon">🇷🇺</div>
+                        <div><div class="asset-name">Российский рубль</div><div class="asset-ticker">RUB</div></div>
+                    </div>
+                    <div class="asset-price">${u.total.toLocaleString()} ₽</div>
+                </div>
+                <div class="asset-item">
+                    <div style="display:flex; align-items:center">
+                        <div class="asset-icon">🎁</div>
+                        <div><div class="asset-name">Кэшбэк инвестора</div><div class="asset-ticker">BONUS</div></div>
+                    </div>
+                    <div class="asset-price">${u.bonus} баллов</div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
