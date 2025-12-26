@@ -8,6 +8,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://img.icons8.com/fluency/300/line-chart.png">
 
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
     <style>
         :root { --bg: #000000; --card: #1c1c1e; --accent: #30d158; --text: #ffffff; --sec: #8e8e93; }
         * { box-sizing: border-box; font-family: -apple-system, sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -56,64 +59,114 @@
             <p style="color:var(--sec); margin-bottom:40px">Вход в торговый терминал</p>
             <input type="text" id="log" placeholder="Логин">
             <input type="password" id="pass" placeholder="Пароль">
-            <button class="btn" onclick="login()">Авторизоваться</button>
-            <p id="err" style="color:#ff453a; font-size:14px; margin-top:15px; display:none">Доступ отклонен: проверьте данные</p>
+            <button class="btn" id="loginBtn" onclick="login()">Войти или Создать</button>
+            <p id="err" style="color:#ff453a; font-size:14px; margin-top:15px; display:none">Неверный пароль</p>
         </div>
-        <footer>Создано в юмористических целях, не несет никакой угрозы.</footer>
+        <footer>Создано в юмористических целях.</footer>
     </div>
 
     <div id="screen-main" class="screen">
         <div class="header">
-            <div class="total-label" id="uLabel">Инвестиционный портфель</div>
+            <div class="total-label" id="uLabel">Загрузка...</div>
             <div class="total-amount" id="uTotal">0 ₽</div>
             <div class="profit" id="uProfit">▲ +0 ₽ (0%) сегодня</div>
         </div>
-
         <div class="chart-container" id="chart"></div>
-
         <div class="section-title">Активы</div>
         <div id="assets-list"></div>
-
         <div class="section-title">Денежные средства</div>
         <div id="currency-list"></div>
-
-        <footer>Создано в юмористических целях, не несет никакой угрозы.</footer>
+        <footer>Данные защищены протоколом.</footer>
     </div>
 
     <script>
-        // БАЗА ВСЕХ КЛИЕНТОВ
-        const users = {
-            "Артём": { pw: "1234", total: 14216, bonus: 1250, stocks: [{n:"Газпром", t:"GAZP", p:8200, i:"🔥"}, {n:"Яндекс", t:"YNDX", p:6016, i:"🔍"}] },
-            "Даня": { pw: "1115", total: 9000, bonus: 3, stocks: [{n:"Сбер", t:"SBER", p:9000, i:"🍏"}] },
-            "Роман": { pw: "2025", total: 8200, bonus: 0, stocks: [{n:"Лукойл", t:"LKOH", p:8200, i:"⛽"}] },
-            "Алексей": { pw: "4711", total: 1005, bonus: 2, stocks: [{n:"Магнит", t:"MGNT", p:1005, i:"🛒"}] },
-            "Матвей": { pw: "2212", total: 1000, bonus: 2, stocks: [{n:"ВТБ", t:"VTBR", p:1000, i:"🔵"}] },
-            "Тимофей": { pw: "6767", total: 8200, bonus: 25, stocks: [{n:"Ozon", t:"OZON", p:8200, i:"📦"}] },
-            "Михаил": { pw: "3456", total: 9500, bonus: 4, stocks: [{n:"Тинькофф", t:"TCSG", p:4500, i:"🛡️"}, {n:"Кред. Лимит", t:"LIMIT", p:5000, i:"💳"}] },
-            "Святослав": { pw: "3553", total: 15000, bonus: 402, stocks: [{n:"Роснефть", t:"ROSN", p:15000, i:"🛢️"}] },
-            "Фёдор": { pw: "1655", total: 15000, bonus: 1, stocks: [{n:"Норникель", t:"GMKN", p:15000, i:"⛏️"}] }
+        // КОНФИГУРАЦИЯ FIREBASE (Твоя база)
+        const firebaseConfig = {
+            apiKey: "AIzaSyA3J7KnUgxUHZigwRKmndm7xyxJeeLCrxg",
+            databaseURL: "https://webapp-b7149-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "webapp-b7149",
         };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
 
-        function login() {
-            const loginInput = document.getElementById('log').value.trim();
-            const passInput = document.getElementById('pass').value.trim();
-            const user = users[loginInput];
+        async function login() {
+            const loginBtn = document.getElementById('loginBtn');
+            const log = document.getElementById('log').value.trim();
+            const pw = document.getElementById('pass').value.trim();
+            const err = document.getElementById('err');
 
-            if(user && user.pw === passInput) {
-                render(user, loginInput);
-                document.getElementById('screen-auth').classList.remove('active');
-                document.getElementById('screen-main').classList.add('active');
+            if(!log || !pw) return;
+            loginBtn.innerText = "Синхронизация...";
+
+            const snapshot = await db.ref('users/' + log).once('value');
+            const userData = snapshot.val();
+
+            if (userData) {
+                // Если пользователь есть, проверяем пароль
+                if (userData.pw === pw) {
+                    render(userData, log);
+                    showMain();
+                } else {
+                    err.style.display = 'block';
+                    loginBtn.innerText = "Войти или Создать";
+                }
             } else {
-                document.getElementById('err').style.display = 'block';
+                // Если пользователя нет — регистрируем (создаем демо-портфель)
+                const newUser = {
+                    pw: pw,
+                    total: 5000,
+                    bonus: 0,
+                    stocks: [
+                        {n: "Сбер", t: "SBER", p: 2500, i: "🍏"},
+                        {n: "Газпром", t: "GAZP", p: 2500, i: "🔥"}
+                    ]
+                };
+                await db.ref('users/' + log).set(newUser);
+                render(newUser, log);
+                showMain();
             }
         }
 
+        function showMain() {
+            document.getElementById('screen-auth').classList.remove('active');
+            document.getElementById('screen-main').classList.add('active');
+        }
+
         function render(u, name) {
+            // Рассчитываем общую сумму на основе акций, если поле total не обновлено вручную
+            let calculatedTotal = 0;
+            const al = document.getElementById('assets-list');
+            al.innerHTML = '';
+
+            if (u.stocks) {
+                u.stocks.forEach(s => {
+                    calculatedTotal += s.p;
+                    al.innerHTML += `
+                        <div class="asset-item">
+                            <div style="display:flex; align-items:center">
+                                <div class="asset-icon">${s.i || '📈'}</div>
+                                <div>
+                                    <div class="asset-name">${s.n}</div>
+                                    <div class="asset-ticker">${s.t}</div>
+                                </div>
+                            </div>
+                            <div class="asset-price">
+                                <div>${s.p.toLocaleString()} ₽</div>
+                                <div class="asset-ch">+${(Math.random()*2).toFixed(1)}%</div>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Если в базе есть жестко заданный total, берем его, иначе сумму акций
+            const finalTotal = u.total || calculatedTotal;
+
             document.getElementById('uLabel').innerText = `Портфель ${name}`;
-            document.getElementById('uTotal').innerText = u.total.toLocaleString() + " ₽";
+            document.getElementById('uTotal').innerText = finalTotal.toLocaleString() + " ₽";
             
-            const dayProfit = Math.floor(u.total * 0.012);
-            document.getElementById('uProfit').innerText = `▲ +${dayProfit.toLocaleString()} ₽ (1.2%) сегодня`;
+            const dayProfit = Math.floor(finalTotal * 0.008);
+            document.getElementById('uProfit').innerText = `▲ +${dayProfit.toLocaleString()} ₽ (0.8%) сегодня`;
 
             // График
             const chart = document.getElementById('chart');
@@ -121,47 +174,25 @@
             for(let i=0; i<25; i++) {
                 const bar = document.createElement('div');
                 bar.className = 'chart-bar';
-                bar.style.height = (30 + Math.random() * 70) + '%';
+                bar.style.height = (40 + Math.random() * 60) + '%';
                 chart.appendChild(bar);
             }
 
-            // Акции
-            const al = document.getElementById('assets-list');
-            al.innerHTML = '';
-            u.stocks.forEach(s => {
-                al.innerHTML += `
-                    <div class="asset-item">
-                        <div style="display:flex; align-items:center">
-                            <div class="asset-icon">${s.i}</div>
-                            <div>
-                                <div class="asset-name">${s.n}</div>
-                                <div class="asset-ticker">${s.t}</div>
-                            </div>
-                        </div>
-                        <div class="asset-price">
-                            <div>${s.p.toLocaleString()} ₽</div>
-                            <div class="asset-ch">+${(Math.random()*3).toFixed(1)}%</div>
-                        </div>
-                    </div>
-                `;
-            });
-
             // Валюта
-            const cl = document.getElementById('currency-list');
-            cl.innerHTML = `
+            document.getElementById('currency-list').innerHTML = `
                 <div class="asset-item">
                     <div style="display:flex; align-items:center">
                         <div class="asset-icon">🇷🇺</div>
                         <div><div class="asset-name">Российский рубль</div><div class="asset-ticker">RUB</div></div>
                     </div>
-                    <div class="asset-price">${u.total.toLocaleString()} ₽</div>
+                    <div class="asset-price">${finalTotal.toLocaleString()} ₽</div>
                 </div>
                 <div class="asset-item">
                     <div style="display:flex; align-items:center">
                         <div class="asset-icon">🎁</div>
-                        <div><div class="asset-name">Кэшбэк инвестора</div><div class="asset-ticker">BONUS</div></div>
+                        <div><div class="asset-name">Кэшбэк</div><div class="asset-ticker">BONUS</div></div>
                     </div>
-                    <div class="asset-price">${u.bonus} баллов</div>
+                    <div class="asset-price">${u.bonus || 0} баллов</div>
                 </div>
             `;
         }
